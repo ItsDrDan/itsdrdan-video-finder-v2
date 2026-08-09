@@ -1,21 +1,30 @@
-name: Update YouTube video library
+name: Update YouTube videos and captions
 
 on:
+  # Lets you click "Run workflow" whenever you want.
   workflow_dispatch:
+
+  # Automatic daily check.
   schedule:
-    - cron: "20 10 * * 1"
+    - cron: "17 11 * * *"
+
+  # Re-run if the updater itself is changed.
   push:
     paths:
-      - "captions/**"
       - "scripts/build_videos.py"
       - ".github/workflows/update-videos.yml"
 
 permissions:
   contents: write
 
+concurrency:
+  group: itsdrdan-youtube-sync
+  cancel-in-progress: false
+
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
       - name: Check out repository
@@ -24,22 +33,24 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.x"
+          python-version: "3.12"
 
-      - name: Install yt-dlp
-        run: python -m pip install --upgrade yt-dlp
+      - name: Install current yt-dlp
+        run: python -m pip install --upgrade "yt-dlp[default]"
 
-      - name: Build videos.json
+      - name: Update video library and missing captions
         run: python scripts/build_videos.py
 
-      - name: Commit updated library
+      - name: Commit library and captions
         run: |
-          if git diff --quiet -- videos.json; then
-            echo "No video library changes."
+          if git diff --quiet -- videos.json captions/; then
+            echo "Nothing changed."
             exit 0
           fi
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add videos.json
-          git commit -m "Update YouTube video library"
+
+          git add videos.json captions/
+          git commit -m "Auto-update YouTube videos and captions"
           git push
